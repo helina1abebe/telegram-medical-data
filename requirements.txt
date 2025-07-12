@@ -1,0 +1,10 @@
+telethon
+python-dotenv
+pandas
+requests
+tqdm
+psycopg2-binary
+dbt
+dagster
+python-dotenv
+# psycopg2-binary is used for PostgreSQL database connections

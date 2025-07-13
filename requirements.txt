@@ -7,4 +7,5 @@ psycopg2-binary
 dbt
 dagster
 python-dotenv
+dbt-postgres
 # psycopg2-binary is used for PostgreSQL database connections

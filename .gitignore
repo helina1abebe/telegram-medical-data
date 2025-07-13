@@ -1,5 +1,16 @@
-.env
+# Python
 __pycache__/
 *.pyc
-data/
 .venv/
+.env
+
+# dbt
+dbt_modules/
+dbt_packages/
+target/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/

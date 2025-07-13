@@ -1,0 +1,15 @@
+version: 2
+
+models:
+  - name: dim_dates
+    description: "Date dimension table for time-based analysis"
+    columns:
+      - name: date
+        description: "Calendar date"
+      - name: date_id
+        description: "Unique integer ID in YYYYMMDD format"
+      - name: year
+      - name: month
+      - name: day
+      - name: weekday
+      - name: is_weekend

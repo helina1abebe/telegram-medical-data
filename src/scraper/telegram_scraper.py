@@ -1,51 +1,113 @@
-from telethon.sync import TelegramClient
-from telethon.tl.types import MessageMediaPhoto
-from dotenv import load_dotenv
-import os, json
+import os
+import csv
+import json
+import time
+import argparse
+import logging
 from datetime import datetime
-from pathlib import Path
+from typing import List
+from dotenv import load_dotenv
+from telethon import TelegramClient
 
-# Load secrets
+# Load environment variables
 load_dotenv()
-api_id = int(os.getenv("TELEGRAM_API_ID"))
-api_hash = os.getenv("TELEGRAM_API_HASH")
+api_id = int(os.getenv("Tg_API_ID"))
+api_hash = os.getenv("Tg_API_HASH")
 
-# Channels to scrape
-channels = ["lobelia4cosmetics", "tikvahpharma"]  # Add more usernames here
+# Today's date
+today = datetime.today().strftime("%Y-%m-%d")
 
-# Today's date for folder naming
-date_str = datetime.today().strftime("%Y-%m-%d")
+# Setup logger
+log_dir = "logs"
+os.makedirs(log_dir, exist_ok=True)
+logging.basicConfig(
+    filename=os.path.join(log_dir, f"scrape_{today}.log"),
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
-# Initialize client
-with TelegramClient("anon", api_id, api_hash) as client:
-    for channel in channels:
-        print(f"\n📥 Scraping channel: {channel}")
-        try:
-            # Prepare message storage
-            message_dir = Path(f"data/raw/telegram_messages/{date_str}")
-            message_dir.mkdir(parents=True, exist_ok=True)
-            message_path = message_dir / f"{channel}.json"
+async def scrape_channel(client: TelegramClient, channel: str, writer: csv.writer, csv_media_dir: str, json_media_dir: str, json_save_dir: str):
+    try:
+        entity = await client.get_entity(channel)
+        channel_title = entity.title
+        messages = []
 
-            # Prepare image storage
-            image_dir = Path(f"data/raw/images/{channel}/{date_str}")
-            image_dir.mkdir(parents=True, exist_ok=True)
+        # Create media dir per channel
+        os.makedirs(csv_media_dir, exist_ok=True)
+        os.makedirs(json_media_dir, exist_ok=True)
 
-            # Scrape messages
-            messages = []
-            for msg in client.iter_messages(channel, limit=100):
-                messages.append(msg.to_dict())
+        async for message in client.iter_messages(entity, limit=1000):
+            media_path = None
+            if message.media and hasattr(message.media, "photo"):
+                filename = f"{channel.strip('@')}_{message.id}.jpg"
+                media_path = os.path.join(csv_media_dir, filename)
+                await client.download_media(message.media, media_path)
 
-                # If message has image, download it
-                if msg.media and isinstance(msg.media, MessageMediaPhoto):
-                    filename = image_dir / f"{msg.id}.jpg"
-                    client.download_media(msg.media, file=filename)
-                    print(f"📸 Downloaded image: {filename.name}")
+            message_dict = {
+                "channel_title": channel_title,
+                "channel_username": channel,
+                "id": message.id,
+                "message": message.message,
+                "date": str(message.date),
+                "media_path": media_path
+            }
 
-            # Save messages as JSON
-            with open(message_path, "w", encoding="utf-8") as f:
-                json.dump(messages, f, ensure_ascii=False, indent=2)
+            # Write to CSV
+            writer.writerow([
+                channel_title,
+                channel,
+                message.id,
+                message.message,
+                message.date,
+                media_path
+            ])
 
-            print(f"✅ Saved {len(messages)} messages to {message_path.name}")
+            # Append for JSON
+            messages.append(message_dict)
 
-        except Exception as e:
-            print(f"❌ Error scraping {channel}: {e}")
+        # Save JSON
+        json_path = os.path.join(json_save_dir, f"{channel.strip('@')}.json")
+        with open(json_path, "w", encoding="utf-8") as jf:
+            json.dump(messages, jf, ensure_ascii=False, indent=2)
+
+        logging.info(f"✅ Finished scraping {channel} ({len(messages)} messages)")
+        time.sleep(3)  # 🔐 Sleep to avoid Telegram ban
+
+    except Exception as e:
+        logging.error(f"❌ Error scraping {channel}: {e}")
+
+async def obtain_channel_ads(client: TelegramClient, telegram_channels: List[str], base_path: str):
+    await client.start()
+
+    # Setup paths
+    csv_dir = os.path.join(base_path, "raw", "csv", today)
+    json_dir = os.path.join(base_path, "raw", "telegram_messages", today)
+    media_base = os.path.join(base_path, "raw", "media", today)
+
+    os.makedirs(csv_dir, exist_ok=True)
+    os.makedirs(json_dir, exist_ok=True)
+
+    csv_file_path = os.path.join(csv_dir, "telegram_data.csv")
+    with open(csv_file_path, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(['channel_title', 'channel_username', 'id', 'message', 'date', 'media_path'])
+
+        for channel in telegram_channels:
+            print(f"📡 Scraping {channel}...")
+            csv_media_dir = os.path.join(media_base, channel.strip('@'))
+            json_media_dir = os.path.join(media_base, channel.strip('@'))
+            await scrape_channel(client, channel, writer, csv_media_dir, json_media_dir, json_dir)
+            print(f"✅ Done with {channel}\n")
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Telegram Scraper for Ethiopian Medical Channels")
+    parser.add_argument("--path", type=str, default="data", help="Base data directory")
+    args = parser.parse_args()
+
+    client = TelegramClient("telegram_scraper_session", api_id, api_hash)
+    print("🚀 Telegram client initialized")
+
+    target_channels = ['@cheMed123', '@lobelia4cosmetics', '@tikvahpharma', '@Thequorachannel']
+
+    with client:
+        client.loop.run_until_complete(obtain_channel_ads(client, target_channels, args.path))

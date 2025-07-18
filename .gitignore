@@ -14,3 +14,5 @@ target/
 
 # VS Code
 .vscode/
+
+data/

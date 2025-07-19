@@ -1,25 +1,27 @@
-version: "3.8"
-
+version: "3.9"
 services:
-  app:
-    build: .
-    volumes:
-      - .:/app
-    env_file:
-      - .env
-    depends_on:
-      - db
-
   db:
     image: postgres:14
+    container_name: telegram_db
     environment:
-      POSTGRES_DB: telegram_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: yourpassword
+      POSTGRES_DB: ${PGDATABASE}
+      POSTGRES_USER: ${PGUSER}
+      POSTGRES_PASSWORD: ${PGPASSWORD}
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql/data
+
+  app:
+    build: .
+    container_name: telegram_app
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    depends_on:
+      - db
+    command: tail -f /dev/null
 
 volumes:
-  postgres_data:
+  pgdata:

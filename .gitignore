@@ -14,3 +14,8 @@ target/
 
 # VS Code
 .vscode/
+
+data/
+anon.session
+*.csv
+telegram_scraper_session.session
